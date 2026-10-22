@@ -15,6 +15,7 @@ param location string
 // }
 param resourceGroupName string = ''
 param webServiceName string = ''
+param apiServiceName string = ''
 param catalogDatabaseName string = 'catalogDatabase'
 param catalogDatabaseServerName string = ''
 param identityDatabaseName string = 'identityDatabase'
@@ -38,9 +39,27 @@ param appUserPassword string
 @description('JWT signing key used to sign and validate API tokens (at least 32 bytes)')
 param jwtSigningKey string = '${newGuid()}${newGuid()}'
 
+// Seeded demo account passwords. Each needs upper, lower, digit and symbol.
+@secure()
+@minLength(8)
+param demoUserPassword string
+
+@secure()
+@minLength(8)
+param productManagerPassword string
+
+@secure()
+@minLength(8)
+param adminPassword string
+
 var abbrs = loadJsonContent('./abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
+var webName = !empty(webServiceName) ? webServiceName : '${abbrs.webSitesAppService}web-${resourceToken}'
+var apiName = !empty(apiServiceName) ? apiServiceName : '${abbrs.webSitesAppService}api-${resourceToken}'
+var webBaseUrl = 'https://${webName}.azurewebsites.net/'
+var apiBaseUrl = 'https://${apiName}.azurewebsites.net/api/'
+var vaultName = !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
 
 // Organize resources in a resource group
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
@@ -54,17 +73,53 @@ module web './core/host/appservice.bicep' = {
   name: 'web'
   scope: rg
   params: {
-    name: !empty(webServiceName) ? webServiceName : '${abbrs.webSitesAppService}web-${resourceToken}'
+    name: webName
     location: location
     appServicePlanId: appServicePlan.outputs.id
     keyVaultName: keyVault.outputs.name
     runtimeName: 'dotnetcore'
-    runtimeVersion: '9.0'
+    runtimeVersion: '10.0'
     tags: union(tags, { 'azd-service-name': 'web' })
     appSettings: {
       AZURE_SQL_CATALOG_CONNECTION_STRING_KEY: 'AZURE-SQL-CATALOG-CONNECTION-STRING'
       AZURE_SQL_IDENTITY_CONNECTION_STRING_KEY: 'AZURE-SQL-IDENTITY-CONNECTION-STRING'
       AZURE_KEY_VAULT_ENDPOINT: keyVault.outputs.endpoint
+      baseUrls__apiBase: apiBaseUrl
+      baseUrls__webBase: webBaseUrl
+    }
+  }
+}
+
+module webKeyVaultAccess './core/security/keyvault-access.bicep' = {
+  name: 'web-keyvault-access'
+  scope: rg
+  params: {
+    keyVaultName: keyVault.outputs.name
+    principalId: web.outputs.identityPrincipalId
+  }
+}
+
+// The public API
+module api './core/host/appservice.bicep' = {
+  name: 'api'
+  scope: rg
+  params: {
+    name: apiName
+    location: location
+    appServicePlanId: appServicePlan.outputs.id
+    keyVaultName: keyVault.outputs.name
+    runtimeName: 'dotnetcore'
+    runtimeVersion: '10.0'
+    tags: union(tags, { 'azd-service-name': 'api' })
+    appSettings: {
+      ConnectionStrings__CatalogConnection: '@Microsoft.KeyVault(VaultName=${vaultName};SecretName=AZURE-SQL-CATALOG-CONNECTION-STRING)'
+      ConnectionStrings__IdentityConnection: '@Microsoft.KeyVault(VaultName=${vaultName};SecretName=AZURE-SQL-IDENTITY-CONNECTION-STRING)'
+      Authentication__Jwt__SigningKey: '@Microsoft.KeyVault(VaultName=${vaultName};SecretName=Authentication--Jwt--SigningKey)'
+      DemoUserPassword: '@Microsoft.KeyVault(VaultName=${vaultName};SecretName=DemoUserPassword)'
+      ProductManagerPassword: '@Microsoft.KeyVault(VaultName=${vaultName};SecretName=ProductManagerPassword)'
+      AdminPassword: '@Microsoft.KeyVault(VaultName=${vaultName};SecretName=AdminPassword)'
+      baseUrls__apiBase: apiBaseUrl
+      baseUrls__webBase: webBaseUrl
     }
   }
 }
@@ -74,8 +129,9 @@ module apiKeyVaultAccess './core/security/keyvault-access.bicep' = {
   scope: rg
   params: {
     keyVaultName: keyVault.outputs.name
-    principalId: web.outputs.identityPrincipalId
+    principalId: api.outputs.identityPrincipalId
   }
+  dependsOn: [ webKeyVaultAccess ]
 }
 
 // The application database: Catalog
@@ -115,7 +171,7 @@ module keyVault './core/security/keyvault.bicep' = {
   name: 'keyvault'
   scope: rg
   params: {
-    name: !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
+    name: vaultName
     location: location
     tags: tags
     principalId: principalId
@@ -130,6 +186,36 @@ module jwtSigningKeySecret './core/security/keyvault-secret.bicep' = {
     keyVaultName: keyVault.outputs.name
     name: 'Authentication--Jwt--SigningKey'
     secretValue: jwtSigningKey
+  }
+}
+
+module demoUserPasswordSecret './core/security/keyvault-secret.bicep' = {
+  name: 'demo-user-password'
+  scope: rg
+  params: {
+    keyVaultName: keyVault.outputs.name
+    name: 'DemoUserPassword'
+    secretValue: demoUserPassword
+  }
+}
+
+module productManagerPasswordSecret './core/security/keyvault-secret.bicep' = {
+  name: 'product-manager-password'
+  scope: rg
+  params: {
+    keyVaultName: keyVault.outputs.name
+    name: 'ProductManagerPassword'
+    secretValue: productManagerPassword
+  }
+}
+
+module adminPasswordSecret './core/security/keyvault-secret.bicep' = {
+  name: 'admin-password'
+  scope: rg
+  params: {
+    keyVaultName: keyVault.outputs.name
+    name: 'AdminPassword'
+    secretValue: adminPassword
   }
 }
 
@@ -158,3 +244,8 @@ output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
 output AZURE_KEY_VAULT_ENDPOINT string = keyVault.outputs.endpoint
 output AZURE_KEY_VAULT_NAME string = keyVault.outputs.name
+output WEB_URI string = web.outputs.uri
+output API_URI string = api.outputs.uri
+
+output BLAZOR_API_BASE string = apiBaseUrl
+output BLAZOR_WEB_BASE string = webBaseUrl

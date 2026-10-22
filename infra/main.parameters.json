@@ -16,6 +16,15 @@
     },
     "appUserPassword": {
       "value": "$(secretOrRandomPassword ${AZURE_KEY_VAULT_NAME} appUserPassword)"
+    },
+    "demoUserPassword": {
+      "value": "${DEMO_USER_PASSWORD}"
+    },
+    "productManagerPassword": {
+      "value": "${PRODUCT_MANAGER_PASSWORD}"
+    },
+    "adminPassword": {
+      "value": "${ADMIN_PASSWORD}"
     }
   }
 }

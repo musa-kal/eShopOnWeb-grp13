@@ -1,5 +1,7 @@
 ﻿@page
 @model LoginModel
+@using Microsoft.eShopWeb.Infrastructure
+@inject IWebHostEnvironment Environment
 
 @{
     ViewData["Title"] = "Log in";
@@ -43,15 +45,18 @@
                             <a asp-page="./Register" asp-route-returnUrl="@Model.ReturnUrl">Register as a new user</a>
                         </p>
                     </div>
-                    <p>
-                        Note that for demo purposes you don't need to register and can login with these credentials:
-                    </p>
-                    <p>
-                        User:     <b>demouser@microsoft.com</b> OR <b>admin@microsoft.com</b>
-                    </p>
-                    <p>
-                        Password: <b>Pass@word1</b>
-                    </p>
+                    @if (Environment.IsLocalDevelopment())
+                    {
+                        <p>
+                            Note that for demo purposes you don't need to register and can login with these credentials:
+                        </p>
+                        <p>
+                            User:     <b>demouser@microsoft.com</b> OR <b>admin@microsoft.com</b>
+                        </p>
+                        <p>
+                            Password: <b>Pass@word1</b>
+                        </p>
+                    }
                 </form>
             </section>
         </div>

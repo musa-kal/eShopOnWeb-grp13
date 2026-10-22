@@ -2,6 +2,7 @@
 using Ardalis.ListStartupServices;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.eShopWeb.ApplicationCore.Constants;
 using Microsoft.eShopWeb.Infrastructure;
 using Microsoft.eShopWeb.Infrastructure.Data;
 using Microsoft.eShopWeb.Infrastructure.Identity;
@@ -26,9 +27,12 @@ public static class WebApplicationExtensions
             var userManager = scopedProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = scopedProvider.GetRequiredService<RoleManager<IdentityRole>>();
             var identityContext = scopedProvider.GetRequiredService<AppIdentityDbContext>();
-            var seedDemoUsers = app.Environment.IsLocalDevelopment()
-                || app.Configuration.GetValue<bool>(AppIdentityDbContextSeed.SEED_DEMO_USERS_CONFIG_NAME);
-            await AppIdentityDbContextSeed.SeedAsync(identityContext, userManager, roleManager, seedDemoUsers);
+            string? SeedPassword(string configName) => app.Configuration[configName]
+                ?? (app.Environment.IsLocalDevelopment() ? AuthorizationConstants.DEFAULT_PASSWORD : null);
+            await AppIdentityDbContextSeed.SeedAsync(identityContext, userManager, roleManager,
+                SeedPassword(AppIdentityDbContextSeed.DEMO_USER_PASSWORD_CONFIG_NAME),
+                SeedPassword(AppIdentityDbContextSeed.PRODUCT_MANAGER_PASSWORD_CONFIG_NAME),
+                SeedPassword(AppIdentityDbContextSeed.ADMIN_PASSWORD_CONFIG_NAME));
         }
         catch (Exception ex)
         {

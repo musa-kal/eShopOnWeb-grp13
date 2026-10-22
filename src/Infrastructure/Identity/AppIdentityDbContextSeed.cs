@@ -1,15 +1,17 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.eShopWeb.ApplicationCore.Constants;
 
 namespace Microsoft.eShopWeb.Infrastructure.Identity;
 
 public class AppIdentityDbContextSeed
 {
-    public const string SEED_DEMO_USERS_CONFIG_NAME = "SeedDemoUsers";
+    public const string DEMO_USER_PASSWORD_CONFIG_NAME = "DemoUserPassword";
+    public const string PRODUCT_MANAGER_PASSWORD_CONFIG_NAME = "ProductManagerPassword";
+    public const string ADMIN_PASSWORD_CONFIG_NAME = "AdminPassword";
 
-    public static async Task SeedAsync(AppIdentityDbContext identityDbContext, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, bool seedDemoUsers)
+    public static async Task SeedAsync(AppIdentityDbContext identityDbContext, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager,
+        string? demoUserPassword, string? productManagerPassword, string? adminPassword)
     {
 
         if (identityDbContext.Database.IsSqlServer())
@@ -20,27 +22,21 @@ public class AppIdentityDbContextSeed
         await roleManager.CreateAsync(new IdentityRole(BlazorShared.Authorization.Constants.Roles.ADMINISTRATORS));
         await roleManager.CreateAsync(new IdentityRole(BlazorShared.Authorization.Constants.Roles.PRODUCT_MANAGERS));
 
-        // Demo users share a publicly known password, so only create them when explicitly allowed
-        if (!seedDemoUsers) return;
+        // Each demo user is only created when its password is configured
+        await CreateUserAsync(userManager, "demouser@microsoft.com", demoUserPassword, null);
+        await CreateUserAsync(userManager, "productmgr@microsoft.com", productManagerPassword, BlazorShared.Authorization.Constants.Roles.PRODUCT_MANAGERS);
+        await CreateUserAsync(userManager, "admin@microsoft.com", adminPassword, BlazorShared.Authorization.Constants.Roles.ADMINISTRATORS);
+    }
 
-        var defaultUser = new ApplicationUser { UserName = "demouser@microsoft.com", Email = "demouser@microsoft.com" };
-        await userManager.CreateAsync(defaultUser, AuthorizationConstants.DEFAULT_PASSWORD);
+    private static async Task CreateUserAsync(UserManager<ApplicationUser> userManager, string userName, string? password, string? role)
+    {
+        if (string.IsNullOrEmpty(password)) return;
 
-        var productManager = new ApplicationUser { UserName = "productmgr@microsoft.com", Email = "productmgr@microsoft.com" };
-        await userManager.CreateAsync(productManager, AuthorizationConstants.DEFAULT_PASSWORD);
-        productManager = await userManager.FindByNameAsync(productManager.UserName);
-        if (productManager != null)
+        await userManager.CreateAsync(new ApplicationUser { UserName = userName, Email = userName }, password);
+        var user = await userManager.FindByNameAsync(userName);
+        if (user != null && role != null)
         {
-            await userManager.AddToRoleAsync(productManager, BlazorShared.Authorization.Constants.Roles.PRODUCT_MANAGERS);
-        }
-
-        string adminUserName = "admin@microsoft.com";
-        var adminUser = new ApplicationUser { UserName = adminUserName, Email = adminUserName };
-        await userManager.CreateAsync(adminUser, AuthorizationConstants.DEFAULT_PASSWORD);
-        adminUser = await userManager.FindByNameAsync(adminUserName);
-        if (adminUser != null)
-        {
-            await userManager.AddToRoleAsync(adminUser, BlazorShared.Authorization.Constants.Roles.ADMINISTRATORS);
+            await userManager.AddToRoleAsync(user, role);
         }
     }
 }

@@ -4,6 +4,8 @@ services:
    environment:
      - ASPNETCORE_ENVIRONMENT=Docker
      - ASPNETCORE_URLS=http://+:8080
+     - ConnectionStrings__CatalogConnection=Server=sqlserver,1433;Initial Catalog=Microsoft.eShopOnWeb.CatalogDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=true;
+     - ConnectionStrings__IdentityConnection=Server=sqlserver,1433;Initial Catalog=Microsoft.eShopOnWeb.Identity;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=true;
    ports:
      - "5106:8080"
    volumes:
@@ -13,6 +15,8 @@ services:
    environment:
      - ASPNETCORE_ENVIRONMENT=Docker
      - ASPNETCORE_URLS=http://+:8080
+     - ConnectionStrings__CatalogConnection=Server=sqlserver,1433;Initial Catalog=Microsoft.eShopOnWeb.CatalogDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=true;
+     - ConnectionStrings__IdentityConnection=Server=sqlserver,1433;Initial Catalog=Microsoft.eShopOnWeb.Identity;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=true;
    ports:
      - "5200:8080"
    volumes:
